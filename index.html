@@ -996,6 +996,15 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// Escape for HTML content without escaping quotes (so highlighter regex on " works)
+function escapeHtmlContent(str) {
+  if (typeof str !== 'string') return str;
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 // ============ Loose JSON Parser ============
 function parseLooseJSON(input) {
   let cleaned = input.trim();
@@ -1012,12 +1021,28 @@ function formatJSON(input) {
 }
 
 function highlightJSON(str) {
-  return str
-    .replace(/("(?:[^"\\]|\\.)*")\s*:/g, '<span class="json-key">$1</span>:')
-    .replace(/:\s*("(?:[^"\\]|\\.)*")/g, ': <span class="json-string">$1</span>')
-    .replace(/:\s*(\d+\.?\d*)/g, ': <span class="json-number">$1</span>')
-    .replace(/:\s*(true|false)/g, ': <span class="json-boolean">$1</span>')
-    .replace(/:\s*(null)/g, ': <span class="json-null">$1</span>');
+  // str is already minimally escaped for content (quotes remain as ")
+  let s = str;
+
+  // Highlight quoted keys: "key":
+  s = s.replace(/("(?:[^"\\]|\\.)*")\s*:/g, '<span class="json-key">$1</span>:');
+
+  // Highlight unquoted keys: key:
+  s = s.replace(/([{\[,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1<span class="json-key">$2</span>:');
+
+  // String values: : "value"
+  s = s.replace(/:\s*("(?:[^"\\]|\\.)*")/g, ': <span class="json-string">$1</span>');
+
+  // Numbers: : 123, -1.23, 1e10
+  s = s.replace(/:\s*(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/g, ': <span class="json-number">$1</span>');
+
+  // Booleans
+  s = s.replace(/:\s*(true|false)/g, ': <span class="json-boolean">$1</span>');
+
+  // Null
+  s = s.replace(/:\s*(null)/g, ': <span class="json-null">$1</span>');
+
+  return s;
 }
 
 // ============ WebSocket ============
@@ -1105,9 +1130,23 @@ connectBtn.addEventListener('click', connect);
 disconnectBtn.addEventListener('click', disconnect);
 
 // ============ Messages ============
+// Note: We keep original msg.text unmodified for copy/resend/export.
+// For display, we may show a pretty-printed version if parsable.
 function addMessage(type, text, responseTime) {
   const time = new Date();
-  messages.push({ type: type, text: text, time: time, responseTime: responseTime || null });
+  let formatted = null;
+  let view = 'raw';
+  if (type === 'sent' || type === 'recv') {
+    try {
+      const obj = parseLooseJSON(text);
+      formatted = JSON.stringify(obj, null, 2);
+      view = 'formatted';
+    } catch (e) {
+      formatted = null;
+      view = 'raw';
+    }
+  }
+  messages.push({ type: type, text: text, time: time, responseTime: responseTime || null, formatted: formatted, view: view });
   if (type === 'sent') {
     stats.sent++;
     updateStats();
@@ -1129,13 +1168,9 @@ function renderMessages() {
   let html = '';
   for (let i = 0; i < filtered.length; i++) {
     const msg = filtered[i];
-    let displayText = msg.text;
-    let highlighted = false;
-    try {
-      const obj = JSON.parse(msg.text);
-      displayText = JSON.stringify(obj, null, 2);
-      highlighted = true;
-    } catch (e) {}
+    const originalIdx = messages.indexOf(msg);
+
+    let displayText = (msg.view === 'formatted' && msg.formatted) ? msg.formatted : msg.text;
 
     const timeStr = msg.time.toLocaleTimeString();
     const dirIcon = msg.type === 'sent' ? 'fa-arrow-up' : msg.type === 'recv' ? 'fa-arrow-down' : 'fa-info-circle';
@@ -1149,9 +1184,18 @@ function renderMessages() {
       responseTimeHtml = '<span class="response-time ' + rtClass + '">' + msg.responseTime + 'ms</span>';
     }
 
-    const bodyContent = highlighted ? highlightJSON(escapeHtml(displayText)) : escapeHtml(displayText);
+    let bodyContent;
+    if (msg.type === 'system') {
+      bodyContent = escapeHtmlContent(displayText);
+    } else {
+      bodyContent = highlightJSON(escapeHtmlContent(displayText));
+    }
 
-    html += '<div class="message-entry ' + msg.type + '" data-idx="' + i + '">' +
+    const toggleBtn = (msg.formatted)
+      ? ('<button class="secondary small" data-action="toggleView" data-idx="' + originalIdx + '" title="' + (msg.view === 'formatted' ? 'Show raw' : 'Show formatted') + '"><i class="fas ' + (msg.view === 'formatted' ? 'fa-align-left' : 'fa-code') + '"></i></button>')
+      : '';
+
+    html += '<div class="message-entry ' + msg.type + '" data-idx="' + originalIdx + '">' +
       '<div class="message-entry-header">' +
       '<div class="message-entry-info">' +
       '<span class="message-direction ' + msg.type + '"><i class="fas ' + dirIcon + '"></i> ' + dirLabel + '</span>' +
@@ -1159,8 +1203,9 @@ function renderMessages() {
       responseTimeHtml +
       '</div>' +
       '<div class="message-entry-actions">' +
-      '<button class="secondary small" data-action="copy" data-idx="' + i + '" title="Copy"><i class="fas fa-copy"></i></button>' +
-      '<button class="secondary small" data-action="resend" data-idx="' + i + '" title="Load to composer"><i class="fas fa-redo"></i></button>' +
+      toggleBtn +
+      '<button class="secondary small" data-action="copy" data-idx="' + originalIdx + '" title="Copy"><i class="fas fa-copy"></i></button>' +
+      '<button class="secondary small" data-action="resend" data-idx="' + originalIdx + '" title="Load to composer"><i class="fas fa-redo"></i></button>' +
       '</div></div>' +
       '<div class="message-entry-body">' + bodyContent + '</div></div>';
   }
@@ -1184,6 +1229,11 @@ messagesContainer.addEventListener('click', function(e) {
   } else if (action === 'resend') {
     messageInput.value = msg.text;
     try { messageInput.value = formatJSON(msg.text); } catch (err) {}
+  } else if (action === 'toggleView') {
+    if (msg.formatted) {
+      msg.view = (msg.view === 'formatted') ? 'raw' : 'formatted';
+      renderMessages();
+    }
   }
 });
 
@@ -1397,6 +1447,13 @@ saveAsTemplateBtn.addEventListener('click', openTemplateModal);
 closeTemplateModalBtn.addEventListener('click', closeTemplateModal);
 cancelTemplateBtn.addEventListener('click', closeTemplateModal);
 
+// Close template modal on backdrop click (bug fix for modal UX)
+templateModal.addEventListener('click', function(e) {
+  if (e.target === templateModal) {
+    closeTemplateModal();
+  }
+});
+
 saveTemplateBtn.addEventListener('click', function() {
   const name = tplNameInput.value.trim();
   const cat = tplCategoryInput.value.trim() || 'Custom';
@@ -1412,7 +1469,14 @@ saveTemplateBtn.addEventListener('click', function() {
     return;
   }
 
-  customTemplates.push({ name: name, cat: cat, desc: desc, payload: payload });
+  // Deduplicate by name+category: update if exists (bug fix to avoid duplicate clutter)
+  const existingIdx = customTemplates.findIndex(function(t) { return t.name === name && t.cat === cat; });
+  if (existingIdx >= 0) {
+    customTemplates[existingIdx] = { name: name, cat: cat, desc: desc, payload: payload };
+  } else {
+    customTemplates.push({ name: name, cat: cat, desc: desc, payload: payload });
+  }
+
   saveTemplates();
   renderTemplates();
   closeTemplateModal();
@@ -1449,7 +1513,12 @@ function closeExportModal() {
 
 function updateExportPreview() {
   const payload = {};
-  if (exportIncludeMessages.checked) payload.messages = messages;
+  if (exportIncludeMessages.checked) {
+    // Export only stable fields (omit view/formatted)
+    payload.messages = messages.map(function(m) {
+      return { type: m.type, text: m.text, time: m.time, responseTime: m.responseTime };
+    });
+  }
   if (exportIncludeTemplates.checked) payload.customTemplates = customTemplates;
   if (exportIncludeHistory.checked) payload.history = history;
   exportPreview.value = JSON.stringify(payload, null, 2);
@@ -1543,7 +1612,7 @@ document.addEventListener('keydown', function(e) {
       break;
     case 'c':
       e.preventDefault();
-      if (ws) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
         disconnect();
       } else {
         connect();

@@ -9,5 +9,19 @@
     "http-proxy-agent": "^7.0.2",
     "https-proxy-agent": "^7.0.6",
     "ws": "^8.19.0"
-  }
+  },
+  "description": "A WebSocket testing tool with a built-in proxy server for debugging matching engine connections. Features a clean dark-themed UI, loose JSON support, message history, and Burp Suite integration.",
+  "main": "server.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dan-nor98/websocket-playground.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/dan-nor98/websocket-playground/issues"
+  },
+  "homepage": "https://github.com/dan-nor98/websocket-playground#readme"
 }
