@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Env
+.env
+
+# Logs
+*.log
+
+# Editor swap / temp files
+*.swp
+*.kate-swp
+
+# Linux / KDE
+.directory
+
+# OS
+.DS_Store

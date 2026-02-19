@@ -1,0 +1,13 @@
+{
+  "name": "ws-tester",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.22.1",
+    "http-proxy-agent": "^7.0.2",
+    "https-proxy-agent": "^7.0.6",
+    "ws": "^8.19.0"
+  }
+}

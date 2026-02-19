@@ -1,0 +1,1580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>WebSocket Tester – Matching Engine</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<style>
+:root {
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-tertiary: #21262d;
+  --border: #30363d;
+  --border-hover: #58a6ff;
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  --accent-green: #238636;
+  --accent-green-bg: rgba(35,134,54,0.15);
+  --accent-blue: #388bfd;
+  --accent-blue-bg: rgba(56,139,253,0.15);
+  --accent-red: #da3633;
+  --accent-red-bg: rgba(218,54,51,0.15);
+  --accent-yellow: #d29922;
+  --accent-yellow-bg: rgba(210,153,34,0.15);
+  --accent-purple: #a371f7;
+  --accent-purple-bg: rgba(163,113,247,0.15);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+header {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.logo i { color: var(--accent-blue); font-size: 20px; }
+
+.header-actions { display: flex; gap: 8px; }
+
+.connection-bar {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 24px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.url-input-group {
+  flex: 1;
+  min-width: 300px;
+  display: flex;
+  gap: 8px;
+}
+
+.url-input-group input {
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  color: var(--text-primary);
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 13px;
+}
+
+.url-input-group input:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px var(--accent-blue-bg);
+}
+
+.connection-actions { display: flex; gap: 8px; }
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-badge.disconnected { background: var(--accent-red-bg); color: var(--accent-red); }
+.status-badge.connecting { background: var(--accent-yellow-bg); color: var(--accent-yellow); }
+.status-badge.connected { background: var(--accent-green-bg); color: var(--accent-green); }
+.status-badge i { font-size: 8px; }
+
+button {
+  background: var(--accent-green);
+  border: none;
+  border-radius: 6px;
+  padding: 10px 16px;
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+button:hover:not(:disabled) { filter: brightness(1.1); }
+button:active:not(:disabled) { transform: scale(0.98); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.secondary { background: var(--bg-tertiary); border: 1px solid var(--border); }
+button.secondary:hover:not(:disabled) { border-color: var(--text-secondary); }
+button.danger { background: var(--accent-red); }
+button.small { padding: 6px 10px; font-size: 11px; }
+button.icon-only { padding: 8px 10px; }
+
+.main-container {
+  display: grid;
+  grid-template-columns: 280px 1fr 320px;
+  height: calc(100vh - 110px);
+}
+
+@media (max-width: 1200px) {
+  .main-container { grid-template-columns: 1fr; height: auto; }
+}
+
+.panel {
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel:last-child { border-right: none; }
+
+.panel-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-header h3 i { color: var(--text-secondary); }
+
+.panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.panel-footer {
+  border-top: 1px solid var(--border);
+  padding: 12px;
+  background: var(--bg-secondary);
+}
+
+.template-category { margin-bottom: 16px; }
+
+.template-category-header {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.template-item {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.template-item:hover { border-color: var(--accent-blue); background: var(--bg-tertiary); }
+
+.template-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.template-item-name { font-size: 13px; font-weight: 500; }
+
+.template-item-badge {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: var(--accent-purple-bg);
+  color: var(--accent-purple);
+}
+
+.template-item-badge.builtin { background: var(--accent-blue-bg); color: var(--accent-blue); }
+
+.template-item-preview {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: 'SF Mono', Monaco, monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.template-item-desc { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+.message-composer {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.composer-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-tertiary);
+}
+
+.composer-toolbar-left, .composer-toolbar-right { display: flex; align-items: center; gap: 8px; }
+.composer-toolbar-right { gap: 4px; }
+
+.composer-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.composer-textarea {
+  width: 100%;
+  min-height: 150px;
+  padding: 12px;
+  background: var(--bg-secondary);
+  border: none;
+  color: var(--text-primary);
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 13px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.composer-textarea:focus { outline: none; }
+
+.composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-tertiary);
+}
+
+.composer-actions-left, .composer-actions-right { display: flex; gap: 8px; }
+
+.error-message {
+  background: var(--accent-red-bg);
+  color: var(--accent-red);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  margin-bottom: 12px;
+  display: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.error-message.visible { display: flex; }
+
+.messages-log { flex: 1; overflow-y: auto; padding: 12px; }
+
+.message-entry {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.message-entry-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border);
+}
+
+.message-entry-info { display: flex; align-items: center; gap: 10px; }
+
+.message-direction {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.message-direction.sent { color: var(--accent-green); }
+.message-direction.recv { color: var(--accent-blue); }
+.message-direction.system { color: var(--text-secondary); }
+
+.message-time { font-size: 11px; color: var(--text-muted); }
+.message-entry-actions { display: flex; gap: 4px; }
+
+.message-entry-body {
+  padding: 12px;
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.message-entry.sent { border-left: 3px solid var(--accent-green); }
+.message-entry.recv { border-left: 3px solid var(--accent-blue); }
+.message-entry.system { border-left: 3px solid var(--text-secondary); }
+.message-entry.system .message-entry-body { color: var(--text-secondary); font-style: italic; }
+
+.history-item {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.history-item:hover { border-color: var(--accent-blue); }
+.history-item-time { font-size: 10px; color: var(--text-muted); margin-bottom: 4px; }
+
+.history-item-preview {
+  font-size: 11px;
+  font-family: 'SF Mono', Monaco, monospace;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stats-bar {
+  display: flex;
+  gap: 16px;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.stat-item { display: flex; flex-direction: column; align-items: center; }
+.stat-value { font-size: 18px; font-weight: 600; color: var(--text-primary); }
+.stat-label { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; }
+
+.filter-bar { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+
+.filter-chip {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  cursor: pointer;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.filter-chip:hover { border-color: var(--text-secondary); }
+.filter-chip.active { background: var(--accent-blue-bg); border-color: var(--accent-blue); color: var(--accent-blue); }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-overlay.active { display: flex; }
+
+.modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-header h3 { margin: 0; font-size: 16px; font-weight: 600; }
+.modal-body { padding: 20px; overflow-y: auto; }
+
+.modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
+
+.form-input {
+  width: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.form-input:focus { outline: none; border-color: var(--accent-blue); }
+
+.form-textarea {
+  width: 100%;
+  min-height: 100px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--text-primary);
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 12px;
+  resize: vertical;
+}
+
+.form-textarea:focus { outline: none; border-color: var(--accent-blue); }
+
+.tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+
+.tab {
+  padding: 10px 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.15s ease;
+}
+
+.tab:hover { color: var(--text-primary); }
+.tab.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); }
+
+.json-key { color: #79c0ff; }
+.json-string { color: #a5d6ff; }
+.json-number { color: #a5d6ff; }
+.json-boolean { color: #ff7b72; }
+.json-null { color: #ff7b72; }
+
+.doc-section { margin-bottom: 20px; }
+
+.doc-section h4 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.doc-section h4 i { color: var(--accent-blue); }
+.doc-text { font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
+
+.doc-code {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 11px;
+  margin-top: 8px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+.shortcut-list { list-style: none; padding: 0; margin: 0; }
+
+.shortcut-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.shortcut-list li:last-child { border-bottom: none; }
+
+.shortcut-key {
+  background: var(--bg-tertiary);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 11px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.empty-state i { font-size: 48px; margin-bottom: 16px; opacity: 0.3; }
+.empty-state p { font-size: 13px; margin: 0; }
+
+.search-input {
+  display: flex;
+  align-items: center;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 10px;
+}
+
+.search-input i { color: var(--text-muted); font-size: 12px; }
+
+.search-input input {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 8px;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.search-input input:focus { outline: none; }
+
+.response-time {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: var(--accent-green-bg);
+  color: var(--accent-green);
+}
+
+.response-time.slow { background: var(--accent-yellow-bg); color: var(--accent-yellow); }
+.response-time.very-slow { background: var(--accent-red-bg); color: var(--accent-red); }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-primary); }
+::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border); }
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="logo">
+    <i class="fas fa-plug"></i>
+    <span>WebSocket Tester</span>
+  </div>
+  <div class="header-actions">
+    <button class="secondary" id="helpBtn"><i class="fas fa-book"></i> Docs</button>
+    <button class="secondary" id="exportBtn"><i class="fas fa-download"></i> Export</button>
+  </div>
+</header>
+
+<div class="connection-bar">
+  <div class="url-input-group">
+    <input type="text" id="wsUrl" value="ws://192.168.90.7:10100/ws" placeholder="ws://hostname:port/path">
+  </div>
+  <div class="connection-actions">
+    <button id="connectBtn"><i class="fas fa-plug"></i> Connect</button>
+    <button id="disconnectBtn" class="danger" disabled><i class="fas fa-times"></i> Disconnect</button>
+  </div>
+  <div class="status-badge disconnected" id="statusBadge">
+    <i class="fas fa-circle"></i>
+    <span id="statusText">Disconnected</span>
+  </div>
+</div>
+
+<div class="main-container">
+
+  <!-- Templates Panel -->
+  <div class="panel">
+    <div class="panel-header">
+      <h3><i class="fas fa-folder-open"></i> Templates</h3>
+      <button class="secondary small" id="addTemplateBtn"><i class="fas fa-plus"></i></button>
+    </div>
+    <div class="panel-content" style="padding: 8px;">
+      <div class="search-input" style="margin-bottom: 12px;">
+        <i class="fas fa-search"></i>
+        <input type="text" id="templateSearch" placeholder="Search templates...">
+      </div>
+      <div id="templatesContainer"></div>
+    </div>
+  </div>
+
+  <!-- Messages Panel -->
+  <div class="panel" style="border-right: 1px solid var(--border);">
+    <div class="panel-header">
+      <h3><i class="fas fa-comments"></i> Messages</h3>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <div class="stats-bar" style="margin: 0; padding: 4px 10px; gap: 12px;">
+          <div class="stat-item" style="flex-direction: row; gap: 6px;">
+            <span class="stat-value" id="statSent" style="font-size: 14px; color: var(--accent-green);">0</span>
+            <span class="stat-label" style="font-size: 10px;">sent</span>
+          </div>
+          <div class="stat-item" style="flex-direction: row; gap: 6px;">
+            <span class="stat-value" id="statRecv" style="font-size: 14px; color: var(--accent-blue);">0</span>
+            <span class="stat-label" style="font-size: 10px;">recv</span>
+          </div>
+        </div>
+        <button class="secondary small" id="clearMessagesBtn"><i class="fas fa-trash"></i></button>
+      </div>
+    </div>
+
+    <div class="filter-bar" style="padding: 8px 12px; margin: 0; border-bottom: 1px solid var(--border);">
+      <div class="filter-chip active" data-filter="all">All</div>
+      <div class="filter-chip" data-filter="sent"><i class="fas fa-arrow-up" style="font-size: 10px;"></i> Sent</div>
+      <div class="filter-chip" data-filter="recv"><i class="fas fa-arrow-down" style="font-size: 10px;"></i> Received</div>
+      <div class="filter-chip" data-filter="system"><i class="fas fa-info-circle" style="font-size: 10px;"></i> System</div>
+    </div>
+
+    <div class="messages-log" id="messagesContainer">
+      <div class="empty-state">
+        <i class="fas fa-inbox"></i>
+        <p>No messages yet. Connect and send a message to get started.</p>
+      </div>
+    </div>
+
+    <div class="panel-footer" style="padding: 0;">
+      <div id="errorBox" class="error-message">
+        <i class="fas fa-exclamation-circle"></i>
+        <span id="errorText"></span>
+      </div>
+      <div class="message-composer">
+        <div class="composer-toolbar">
+          <div class="composer-toolbar-left">
+            <span class="composer-label">Compose Message</span>
+            <span style="font-size: 11px; color: var(--text-muted);">(Loose JSON supported)</span>
+          </div>
+          <div class="composer-toolbar-right">
+            <button class="secondary small" id="formatBtn" title="Format JSON (Ctrl+Shift+F)"><i class="fas fa-magic"></i></button>
+            <button class="secondary small" id="clearInputBtn" title="Clear input"><i class="fas fa-eraser"></i></button>
+          </div>
+        </div>
+        <textarea class="composer-textarea" id="messageInput" placeholder='{id: 1, method: "subscribe", params: {channel: "trades"}}'>{id:4, AuthorizeSubscriber:{resource:"SUB8"}}</textarea>
+        <div class="composer-actions">
+          <div class="composer-actions-left">
+            <button class="secondary" id="saveAsTemplateBtn"><i class="fas fa-save"></i> Save as Template</button>
+          </div>
+          <div class="composer-actions-right">
+            <button id="sendBtn" disabled>
+              <i class="fas fa-paper-plane"></i> Send
+              <span style="opacity: 0.7; font-size: 10px; margin-left: 4px;">(Ctrl+Enter)</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="panel">
+    <div class="tabs" id="rightPanelTabs">
+      <div class="tab right-panel-tab active" data-tab="history"><i class="fas fa-history"></i> History</div>
+      <div class="tab right-panel-tab" data-tab="info"><i class="fas fa-info-circle"></i> Info</div>
+    </div>
+
+    <!-- History Panel -->
+    <div class="panel-content" id="historyPanel">
+      <div class="search-input" style="margin-bottom: 12px;">
+        <i class="fas fa-search"></i>
+        <input type="text" id="historySearch" placeholder="Search history...">
+      </div>
+      <div id="historyContainer">
+        <div class="empty-state">
+          <i class="fas fa-clock"></i>
+          <p>Sent messages will appear here.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info Panel -->
+    <div class="panel-content" id="infoPanel" style="display: none;">
+      <div class="doc-section">
+        <h4><i class="fas fa-keyboard"></i> Keyboard Shortcuts</h4>
+        <ul class="shortcut-list">
+          <li><span>Send message</span> <span class="shortcut-key">Ctrl + Enter</span></li>
+          <li><span>Format JSON</span> <span class="shortcut-key">Ctrl + Shift + F</span></li>
+          <li><span>Clear input</span> <span class="shortcut-key">Ctrl + Shift + X</span></li>
+          <li><span>Connect/Disconnect</span> <span class="shortcut-key">Ctrl + Shift + C</span></li>
+        </ul>
+      </div>
+      <div class="doc-section">
+        <h4><i class="fas fa-code"></i> Loose JSON Format</h4>
+        <p class="doc-text">You can write JSON without quoting keys:</p>
+        <div class="doc-code">{id: 1, method: "test"}
+// Comments are supported
+{id: 2, nested: {key: "value"}}</div>
+      </div>
+      <div class="doc-section">
+        <h4><i class="fas fa-server"></i> Connection Info</h4>
+        <div style="font-size: 12px; color: var(--text-secondary);">
+          <p><strong>URL:</strong> <span id="infoUrl">-</span></p>
+          <p><strong>Status:</strong> <span id="infoStatus">Disconnected</span></p>
+          <p><strong>Connected at:</strong> <span id="infoConnectedAt">-</span></p>
+          <p><strong>Messages sent:</strong> <span id="infoSent">0</span></p>
+          <p><strong>Messages received:</strong> <span id="infoRecv">0</span></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-footer" id="historyFooter">
+      <button class="secondary" id="clearHistoryBtn" style="width: 100%;"><i class="fas fa-trash"></i> Clear History</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Template Modal -->
+<div class="modal-overlay" id="templateModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="fas fa-save" style="color: var(--accent-blue); margin-right: 8px;"></i> Save Template</h3>
+      <button class="secondary icon-only" id="closeTemplateModal"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Template Name *</label>
+        <input type="text" class="form-input" id="tplName" placeholder="e.g., Subscribe to Trades">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <input type="text" class="form-input" id="tplCategory" placeholder="e.g., Market Data, Orders, Auth">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description (optional)</label>
+        <input type="text" class="form-input" id="tplDescription" placeholder="Brief description">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Payload</label>
+        <textarea class="form-textarea" id="tplPayload" rows="6"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="secondary" id="cancelTemplateBtn">Cancel</button>
+      <button id="saveTemplateBtn"><i class="fas fa-save"></i> Save Template</button>
+    </div>
+  </div>
+</div>
+
+<!-- Help Modal -->
+<div class="modal-overlay" id="helpModal">
+  <div class="modal" style="max-width: 600px;">
+    <div class="modal-header">
+      <h3><i class="fas fa-book" style="color: var(--accent-blue); margin-right: 8px;"></i> Documentation</h3>
+      <button class="secondary icon-only" id="closeHelpModal"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="doc-section">
+        <h4><i class="fas fa-rocket"></i> Getting Started</h4>
+        <p class="doc-text">1. Enter your WebSocket URL<br>2. Click "Connect"<br>3. Write your message (loose JSON supported)<br>4. Click "Send" or press Ctrl+Enter</p>
+      </div>
+      <div class="doc-section">
+        <h4><i class="fas fa-code"></i> Loose JSON Support</h4>
+        <div class="doc-code">// Unquoted keys
+{id: 1, method: "subscribe"}
+
+// Comments supported
+{id: 2, data: {key: "value"}}
+
+// Trailing commas OK
+{items: [1, 2, 3,],}</div>
+      </div>
+      <div class="doc-section">
+        <h4><i class="fas fa-keyboard"></i> Keyboard Shortcuts</h4>
+        <ul class="shortcut-list">
+          <li><span>Send message</span> <span class="shortcut-key">Ctrl + Enter</span></li>
+          <li><span>Format JSON</span> <span class="shortcut-key">Ctrl + Shift + F</span></li>
+          <li><span>Clear input</span> <span class="shortcut-key">Ctrl + Shift + X</span></li>
+          <li><span>Toggle connection</span> <span class="shortcut-key">Ctrl + Shift + C</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal-overlay" id="exportModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3><i class="fas fa-download" style="color: var(--accent-blue); margin-right: 8px;"></i> Export Session</h3>
+      <button class="secondary icon-only" id="closeExportModal"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Export Options</label>
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 13px;">
+            <input type="checkbox" id="exportMessages" checked> Messages
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 13px;">
+            <input type="checkbox" id="exportTemplates" checked> Custom Templates
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 13px;">
+            <input type="checkbox" id="exportHistory" checked> History
+          </label>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Preview</label>
+        <textarea class="form-textarea" id="exportPreview" rows="10" readonly style="font-size: 11px;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="secondary" id="exportCancelBtn">Cancel</button>
+      <button class="secondary" id="copyExportBtn"><i class="fas fa-copy"></i> Copy</button>
+      <button id="downloadExportBtn"><i class="fas fa-download"></i> Download</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ============ State ============
+let ws = null;
+let lastSentTime = null;
+let connectedAt = null;
+
+let stats = { sent: 0, recv: 0 };
+let messages = [];
+let history = [];
+let customTemplates = [];
+let currentFilter = 'all';
+
+const builtinTemplates = [
+  {
+    name: 'Ping',
+    cat: 'General',
+    desc: 'Simple ping payload',
+    payload: '{ "type": "ping" }'
+  },
+  {
+    name: 'Auth Request',
+    cat: 'Authentication',
+    desc: 'Example authentication payload',
+    payload: '{ "action": "login", "username": "user", "password": "pass" }'
+  }
+];
+
+// ============ DOM Elements ============
+const wsUrlInput = document.getElementById('wsUrl');
+const connectBtn = document.getElementById('connectBtn');
+const disconnectBtn = document.getElementById('disconnectBtn');
+const statusBadge = document.getElementById('statusBadge');
+const statusText = document.getElementById('statusText');
+const messageInput = document.getElementById('messageInput');
+const messagesContainer = document.getElementById('messagesContainer');
+const sendBtn = document.getElementById('sendBtn');
+const formatBtn = document.getElementById('formatBtn');
+const clearInputBtn = document.getElementById('clearInputBtn');
+const clearMessagesBtn = document.getElementById('clearMessagesBtn');
+const errorBox = document.getElementById('errorBox');
+const errorText = document.getElementById('errorText');
+const templatesContainer = document.getElementById('templatesContainer');
+const templateSearch = document.getElementById('templateSearch');
+const historyContainer = document.getElementById('historyContainer');
+const historySearch = document.getElementById('historySearch');
+const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+const addTemplateBtn = document.getElementById('addTemplateBtn');
+const saveAsTemplateBtn = document.getElementById('saveAsTemplateBtn');
+const statSent = document.getElementById('statSent');
+const statRecv = document.getElementById('statRecv');
+const templateModal = document.getElementById('templateModal');
+const helpModal = document.getElementById('helpModal');
+const exportModal = document.getElementById('exportModal');
+
+// Export modal elements
+const exportBtn = document.getElementById('exportBtn');
+const exportCloseBtn = document.getElementById('closeExportModal');
+const exportCopyBtn = document.getElementById('copyExportBtn');
+const exportDownloadBtn = document.getElementById('downloadExportBtn');
+const exportPreview = document.getElementById('exportPreview');
+const exportIncludeMessages = document.getElementById('exportMessages');
+const exportIncludeTemplates = document.getElementById('exportTemplates');
+const exportIncludeHistory = document.getElementById('exportHistory');
+const exportCancelBtn = document.getElementById('exportCancelBtn');
+
+// Help modal controls
+const helpBtn = document.getElementById('helpBtn');
+const closeHelpModalBtn = document.getElementById('closeHelpModal');
+
+// Template modal controls
+const tplNameInput = document.getElementById('tplName');
+const tplCategoryInput = document.getElementById('tplCategory');
+const tplDescriptionInput = document.getElementById('tplDescription');
+const tplPayloadInput = document.getElementById('tplPayload');
+const saveTemplateBtn = document.getElementById('saveTemplateBtn');
+const cancelTemplateBtn = document.getElementById('cancelTemplateBtn');
+const closeTemplateModalBtn = document.getElementById('closeTemplateModal');
+
+// Right panel tabs
+const rightPanelTabs = document.querySelectorAll('.right-panel-tab');
+const historyPanel = document.getElementById('historyPanel');
+const infoPanel = document.getElementById('infoPanel');
+const historyFooter = document.getElementById('historyFooter');
+
+// ============ Utilities ============
+function setStatus(state, text) {
+  statusBadge.className = 'status-badge ' + state;
+  statusText.textContent = text;
+  document.getElementById('infoStatus').textContent = text;
+}
+
+function showError(msg) {
+  errorText.textContent = msg;
+  errorBox.classList.add('visible');
+}
+
+function hideError() {
+  errorBox.classList.remove('visible');
+}
+
+function updateStats() {
+  statSent.textContent = stats.sent;
+  statRecv.textContent = stats.recv;
+  document.getElementById('infoSent').textContent = stats.sent;
+  document.getElementById('infoRecv').textContent = stats.recv;
+}
+
+function escapeHtml(str) {
+  if (typeof str !== 'string') return str;
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ============ Loose JSON Parser ============
+function parseLooseJSON(input) {
+  let cleaned = input.trim();
+  cleaned = cleaned.replace(/\/\/.*$/gm, '');
+  cleaned = cleaned.replace(/\/\*[\s\S]*?\*\//g, '');
+  cleaned = cleaned.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+  cleaned = cleaned.replace(/,(\s*[}\]])/g, '$1');
+  return JSON.parse(cleaned);
+}
+
+function formatJSON(input) {
+  const obj = parseLooseJSON(input);
+  return JSON.stringify(obj, null, 2);
+}
+
+function highlightJSON(str) {
+  return str
+    .replace(/("(?:[^"\\]|\\.)*")\s*:/g, '<span class="json-key">$1</span>:')
+    .replace(/:\s*("(?:[^"\\]|\\.)*")/g, ': <span class="json-string">$1</span>')
+    .replace(/:\s*(\d+\.?\d*)/g, ': <span class="json-number">$1</span>')
+    .replace(/:\s*(true|false)/g, ': <span class="json-boolean">$1</span>')
+    .replace(/:\s*(null)/g, ': <span class="json-null">$1</span>');
+}
+
+// ============ WebSocket ============
+function connect() {
+  const url = wsUrlInput.value.trim();
+  if (!url) {
+    showError('Please enter a WebSocket URL');
+    return;
+  }
+
+  setStatus('connecting', 'Connecting...');
+  connectBtn.disabled = true;
+  hideError();
+
+  try {
+    ws = new WebSocket(url);
+  } catch (e) {
+    setStatus('disconnected', 'Disconnected');
+    showError('Invalid URL: ' + e.message);
+    connectBtn.disabled = false;
+    return;
+  }
+
+  ws.onopen = function() {
+    setStatus('connected', 'Connected');
+    connectBtn.disabled = true;
+    disconnectBtn.disabled = false;
+    sendBtn.disabled = false;
+    connectedAt = new Date();
+    document.getElementById('infoUrl').textContent = url;
+    document.getElementById('infoConnectedAt').textContent = connectedAt.toLocaleString();
+    addMessage('system', 'Connected to ' + url);
+  };
+
+  ws.onclose = function(e) {
+    setStatus('disconnected', 'Disconnected');
+    connectBtn.disabled = false;
+    disconnectBtn.disabled = true;
+    sendBtn.disabled = true;
+    addMessage('system', 'Connection closed' + (e.reason ? ': ' + e.reason : ''));
+    ws = null;
+  };
+
+  ws.onerror = function() {
+    showError('WebSocket connection error');
+    addMessage('system', 'Connection error occurred');
+  };
+
+  ws.onmessage = async function(event) {
+    let data;
+    if (event.data instanceof Blob) {
+      try {
+        data = await event.data.text();
+      } catch (e) {
+        data = '[Binary data - decode failed]';
+      }
+    } else if (event.data instanceof ArrayBuffer) {
+      const decoder = new TextDecoder('utf-8');
+      data = decoder.decode(event.data);
+    } else {
+      data = event.data;
+    }
+    processIncoming(data);
+  };
+}
+
+function processIncoming(data) {
+  stats.recv++;
+  updateStats();
+  let responseTime = null;
+  if (lastSentTime) {
+    responseTime = Date.now() - lastSentTime;
+    lastSentTime = null;
+  }
+  addMessage('recv', data, responseTime);
+}
+
+function disconnect() {
+  if (ws) {
+    ws.close();
+  }
+}
+
+connectBtn.addEventListener('click', connect);
+disconnectBtn.addEventListener('click', disconnect);
+
+// ============ Messages ============
+function addMessage(type, text, responseTime) {
+  const time = new Date();
+  messages.push({ type: type, text: text, time: time, responseTime: responseTime || null });
+  if (type === 'sent') {
+    stats.sent++;
+    updateStats();
+  }
+  renderMessages();
+}
+
+function renderMessages() {
+  const filtered = messages.filter(function(m) {
+    if (currentFilter === 'all') return true;
+    return m.type === currentFilter;
+  });
+
+  if (filtered.length === 0) {
+    messagesContainer.innerHTML = '<div class="empty-state"><i class="fas fa-inbox"></i><p>No messages yet. Connect and send a message to get started.</p></div>';
+    return;
+  }
+
+  let html = '';
+  for (let i = 0; i < filtered.length; i++) {
+    const msg = filtered[i];
+    let displayText = msg.text;
+    let highlighted = false;
+    try {
+      const obj = JSON.parse(msg.text);
+      displayText = JSON.stringify(obj, null, 2);
+      highlighted = true;
+    } catch (e) {}
+
+    const timeStr = msg.time.toLocaleTimeString();
+    const dirIcon = msg.type === 'sent' ? 'fa-arrow-up' : msg.type === 'recv' ? 'fa-arrow-down' : 'fa-info-circle';
+    const dirLabel = msg.type === 'sent' ? 'SENT' : msg.type === 'recv' ? 'RECEIVED' : 'SYSTEM';
+
+    let responseTimeHtml = '';
+    if (msg.responseTime !== null) {
+      let rtClass = '';
+      if (msg.responseTime > 1000) rtClass = 'very-slow';
+      else if (msg.responseTime > 300) rtClass = 'slow';
+      responseTimeHtml = '<span class="response-time ' + rtClass + '">' + msg.responseTime + 'ms</span>';
+    }
+
+    const bodyContent = highlighted ? highlightJSON(escapeHtml(displayText)) : escapeHtml(displayText);
+
+    html += '<div class="message-entry ' + msg.type + '" data-idx="' + i + '">' +
+      '<div class="message-entry-header">' +
+      '<div class="message-entry-info">' +
+      '<span class="message-direction ' + msg.type + '"><i class="fas ' + dirIcon + '"></i> ' + dirLabel + '</span>' +
+      '<span class="message-time">' + timeStr + '</span>' +
+      responseTimeHtml +
+      '</div>' +
+      '<div class="message-entry-actions">' +
+      '<button class="secondary small" data-action="copy" data-idx="' + i + '" title="Copy"><i class="fas fa-copy"></i></button>' +
+      '<button class="secondary small" data-action="resend" data-idx="' + i + '" title="Load to composer"><i class="fas fa-redo"></i></button>' +
+      '</div></div>' +
+      '<div class="message-entry-body">' + bodyContent + '</div></div>';
+  }
+  messagesContainer.innerHTML = html;
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+messagesContainer.addEventListener('click', function(e) {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const idx = parseInt(btn.dataset.idx, 10);
+  const msg = messages[idx];
+  if (!msg) return;
+
+  if (action === 'copy') {
+    navigator.clipboard.writeText(msg.text).then(function() {
+      btn.innerHTML = '<i class="fas fa-check"></i>';
+      setTimeout(function() { btn.innerHTML = '<i class="fas fa-copy"></i>'; }, 1500);
+    });
+  } else if (action === 'resend') {
+    messageInput.value = msg.text;
+    try { messageInput.value = formatJSON(msg.text); } catch (err) {}
+  }
+});
+
+document.querySelectorAll('.filter-chip').forEach(function(chip) {
+  chip.addEventListener('click', function() {
+    document.querySelectorAll('.filter-chip').forEach(function(c) { c.classList.remove('active'); });
+    this.classList.add('active');
+    currentFilter = this.dataset.filter;
+    renderMessages();
+  });
+});
+
+clearMessagesBtn.addEventListener('click', function() {
+  messages = [];
+  stats = { sent: 0, recv: 0 };
+  updateStats();
+  renderMessages();
+});
+
+// ============ Send Message ============
+function sendMessage() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    showError('Not connected');
+    return;
+  }
+  const raw = messageInput.value.trim();
+  if (!raw) {
+    showError('Message is empty');
+    return;
+  }
+  try {
+    const obj = parseLooseJSON(raw);
+    const jsonStr = JSON.stringify(obj);
+    lastSentTime = Date.now();
+    ws.send(jsonStr);
+    addMessage('sent', jsonStr);
+    saveToHistory(jsonStr);
+    hideError();
+  } catch (e) {
+    showError('Parse error: ' + e.message);
+  }
+}
+
+sendBtn.addEventListener('click', sendMessage);
+
+formatBtn.addEventListener('click', function() {
+  try {
+    messageInput.value = formatJSON(messageInput.value);
+    hideError();
+  } catch (e) {
+    showError('Parse error: ' + e.message);
+  }
+});
+
+clearInputBtn.addEventListener('click', function() {
+  messageInput.value = '';
+  hideError();
+});
+
+// ============ History ============
+function loadHistory() {
+  try {
+    history = JSON.parse(localStorage.getItem('ws_history') || '[]');
+  } catch (e) {
+    history = [];
+  }
+  renderHistory();
+}
+
+function saveToHistory(msg) {
+  history = history.filter(function(h) { return h.text !== msg; });
+  history.unshift({ text: msg, time: new Date().toISOString() });
+  history = history.slice(0, 100);
+  localStorage.setItem('ws_history', JSON.stringify(history));
+  renderHistory();
+}
+
+function renderHistory(filter) {
+  filter = filter || '';
+  const filtered = history.filter(function(h) {
+    if (!filter) return true;
+    return h.text.toLowerCase().indexOf(filter.toLowerCase()) >= 0;
+  });
+
+  if (filtered.length === 0) {
+    historyContainer.innerHTML = '<div class="empty-state"><i class="fas fa-clock"></i><p>' + (filter ? 'No matching history.' : 'Sent messages will appear here.') + '</p></div>';
+    return;
+  }
+
+  let html = '';
+  for (let i = 0; i < filtered.length; i++) {
+    const item = filtered[i];
+    const time = new Date(item.time);
+    let preview = item.text;
+    if (preview.length > 80) preview = preview.substring(0, 80) + '...';
+    html += '<div class="history-item" data-idx="' + i + '">' +
+      '<div class="history-item-time">' + time.toLocaleString() + '</div>' +
+      '<div class="history-item-preview">' + escapeHtml(preview) + '</div></div>';
+  }
+  historyContainer.innerHTML = html;
+}
+
+historyContainer.addEventListener('click', function(e) {
+  const item = e.target.closest('.history-item');
+  if (!item) return;
+  const idx = parseInt(item.dataset.idx, 10);
+  const entry = history[idx];
+  if (!entry) return;
+  messageInput.value = entry.text;
+  try { messageInput.value = formatJSON(entry.text); } catch (err) {}
+});
+
+historySearch.addEventListener('input', function() {
+  renderHistory(this.value);
+});
+
+clearHistoryBtn.addEventListener('click', function() {
+  history = [];
+  localStorage.setItem('ws_history', '[]');
+  renderHistory();
+});
+
+// ============ Templates ============
+function loadTemplates() {
+  try {
+    customTemplates = JSON.parse(localStorage.getItem('ws_templates') || '[]');
+  } catch (e) {
+    customTemplates = [];
+  }
+  renderTemplates();
+}
+
+function saveTemplates() {
+  localStorage.setItem('ws_templates', JSON.stringify(customTemplates));
+}
+
+function renderTemplates(filter) {
+  filter = filter || '';
+  const all = builtinTemplates.map(function(t) { return { name: t.name, cat: t.cat, desc: t.desc, payload: t.payload, builtin: true }; })
+    .concat(customTemplates.map(function(t) { return { name: t.name, cat: t.cat, desc: t.desc, payload: t.payload, builtin: false }; }));
+
+  const filtered = all.filter(function(t) {
+    if (!filter) return true;
+    return t.name.toLowerCase().indexOf(filter.toLowerCase()) >= 0 ||
+           t.cat.toLowerCase().indexOf(filter.toLowerCase()) >= 0 ||
+           t.payload.toLowerCase().indexOf(filter.toLowerCase()) >= 0;
+  });
+
+  const grouped = {};
+  for (let i = 0; i < filtered.length; i++) {
+    const t = filtered[i];
+    if (!grouped[t.cat]) grouped[t.cat] = [];
+    grouped[t.cat].push(t);
+  }
+
+  const cats = Object.keys(grouped).sort();
+  if (cats.length === 0) {
+    templatesContainer.innerHTML = '<div class="empty-state"><i class="fas fa-folder-open"></i><p>' + (filter ? 'No matching templates.' : 'No templates available.') + '</p></div>';
+    return;
+  }
+
+  let html = '';
+  for (let c = 0; c < cats.length; c++) {
+    const cat = cats[c];
+    const templates = grouped[cat];
+    html += '<div class="template-category"><div class="template-category-header"><i class="fas fa-tag"></i> ' + escapeHtml(cat) + '</div>';
+    for (let i = 0; i < templates.length; i++) {
+      const t = templates[i];
+      let preview = t.payload;
+      if (preview.length > 50) preview = preview.substring(0, 50) + '...';
+      html += '<div class="template-item" data-payload="' + escapeHtml(t.payload) + '" data-name="' + escapeHtml(t.name) + '">' +
+        '<div class="template-item-header">' +
+        '<span class="template-item-name">' + escapeHtml(t.name) + '</span>' +
+        '<span class="template-item-badge ' + (t.builtin ? 'builtin' : '') + '">' + (t.builtin ? 'Built-in' : 'Custom') + '</span>' +
+        '</div>' +
+        '<div class="template-item-preview">' + escapeHtml(preview) + '</div>' +
+        (t.desc ? '<div class="template-item-desc">' + escapeHtml(t.desc) + '</div>' : '') +
+        '</div>';
+    }
+    html += '</div>';
+  }
+  templatesContainer.innerHTML = html;
+}
+
+templatesContainer.addEventListener('click', function(e) {
+  const item = e.target.closest('.template-item');
+  if (!item) return;
+  messageInput.value = item.dataset.payload;
+  try { messageInput.value = formatJSON(item.dataset.payload); } catch (err) {}
+});
+
+templateSearch.addEventListener('input', function() {
+  renderTemplates(this.value);
+});
+
+// ============ Template Modal ============
+function openTemplateModal() {
+  tplNameInput.value = '';
+  tplCategoryInput.value = '';
+  tplDescriptionInput.value = '';
+  tplPayloadInput.value = messageInput.value;
+  templateModal.classList.add('active');
+}
+
+function closeTemplateModal() {
+  templateModal.classList.remove('active');
+}
+
+addTemplateBtn.addEventListener('click', openTemplateModal);
+saveAsTemplateBtn.addEventListener('click', openTemplateModal);
+closeTemplateModalBtn.addEventListener('click', closeTemplateModal);
+cancelTemplateBtn.addEventListener('click', closeTemplateModal);
+
+saveTemplateBtn.addEventListener('click', function() {
+  const name = tplNameInput.value.trim();
+  const cat = tplCategoryInput.value.trim() || 'Custom';
+  const desc = tplDescriptionInput.value.trim();
+  const payload = tplPayloadInput.value.trim();
+
+  if (!name) {
+    alert('Please enter a template name');
+    return;
+  }
+  if (!payload) {
+    alert('Please enter a payload');
+    return;
+  }
+
+  customTemplates.push({ name: name, cat: cat, desc: desc, payload: payload });
+  saveTemplates();
+  renderTemplates();
+  closeTemplateModal();
+});
+
+// ============ Help Modal ============
+helpBtn.addEventListener('click', function() {
+  helpModal.classList.add('active');
+});
+
+closeHelpModalBtn.addEventListener('click', function() {
+  helpModal.classList.remove('active');
+});
+
+// Close help modal on backdrop click
+helpModal.addEventListener('click', function(e) {
+  if (e.target === helpModal) {
+    helpModal.classList.remove('active');
+  }
+});
+
+// ============ Export Modal ============
+function openExportModal() {
+  exportIncludeMessages.checked = true;
+  exportIncludeTemplates.checked = true;
+  exportIncludeHistory.checked = true;
+  updateExportPreview();
+  exportModal.classList.add('active');
+}
+
+function closeExportModal() {
+  exportModal.classList.remove('active');
+}
+
+function updateExportPreview() {
+  const payload = {};
+  if (exportIncludeMessages.checked) payload.messages = messages;
+  if (exportIncludeTemplates.checked) payload.customTemplates = customTemplates;
+  if (exportIncludeHistory.checked) payload.history = history;
+  exportPreview.value = JSON.stringify(payload, null, 2);
+}
+
+exportIncludeMessages.addEventListener('change', updateExportPreview);
+exportIncludeTemplates.addEventListener('change', updateExportPreview);
+exportIncludeHistory.addEventListener('change', updateExportPreview);
+
+exportBtn.addEventListener('click', openExportModal);
+exportCloseBtn.addEventListener('click', closeExportModal);
+exportCancelBtn.addEventListener('click', closeExportModal);
+
+exportCopyBtn.addEventListener('click', function() {
+  exportPreview.select();
+  document.execCommand('copy');
+  exportCopyBtn.textContent = 'Copied!';
+  setTimeout(function() {
+    exportCopyBtn.textContent = 'Copy';
+  }, 1500);
+});
+
+exportDownloadBtn.addEventListener('click', function() {
+  const dataStr = exportPreview.value;
+  const blob = new Blob([dataStr], { type: 'application/json' });
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = 'ws-session-' + timestamp + '.json';
+
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
+});
+
+exportModal.addEventListener('click', function(e) {
+  if (e.target === exportModal) {
+    closeExportModal();
+  }
+});
+
+// ============ Right Panel Tabs ============
+rightPanelTabs.forEach(function(tab) {
+  tab.addEventListener('click', function() {
+    const target = this.dataset.tab; // Changed from .target to .tab to match HTML
+
+    // Remove active class from all tabs
+    rightPanelTabs.forEach(function(t) { t.classList.remove('active'); });
+
+    // Add active class to clicked tab
+    this.classList.add('active');
+
+    // Toggle panels based on target
+    if (target === 'history') {
+      historyPanel.style.display = 'block';
+      infoPanel.style.display = 'none';
+      historyFooter.style.display = 'flex';
+    } else {
+      historyPanel.style.display = 'none';
+      infoPanel.style.display = 'block';
+      historyFooter.style.display = 'none';
+    }
+  });
+});
+
+// ============ Keyboard Shortcuts ============
+document.addEventListener('keydown', function(e) {
+  const isPrimaryModifier = e.ctrlKey || e.metaKey;
+  const key = e.key.toLowerCase();
+
+  if (isPrimaryModifier && e.key === 'Enter') {
+    e.preventDefault();
+    sendMessage();
+    return;
+  }
+
+  if (!isPrimaryModifier || !e.shiftKey) {
+    return;
+  }
+
+  switch (key) {
+    case 'f':
+      e.preventDefault();
+      formatBtn.click();
+      break;
+    case 'x':
+      e.preventDefault();
+      clearInputBtn.click();
+      break;
+    case 'c':
+      e.preventDefault();
+      if (ws) {
+        disconnect();
+      } else {
+        connect();
+      }
+      break;
+  }
+});
+
+
+// Global Esc handler for modals
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    if (templateModal.classList.contains('active')) closeTemplateModal();
+    if (helpModal.classList.contains('active')) helpModal.classList.remove('active');
+    if (exportModal.classList.contains('active')) closeExportModal();
+  }
+});
+
+// ============ Initialization ============
+function init() {
+  updateStats();
+  setStatus('disconnected', 'Disconnected');
+  loadHistory();
+  loadTemplates();
+  renderMessages();
+  updateExportPreview();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+
+})();
+</script>
+</body>
+</html>
